@@ -1,5 +1,5 @@
-#ifndef __BTLOGGER_RECEIVER__
-#define __BTLOGGER_RECEIVER__
+#ifndef __ZLOGGER_RECEIVER__
+#define __ZLOGGER_RECEIVER__
 
 #include <string>
 #include "zlogger_parser.hpp"
@@ -8,31 +8,37 @@
 
 using namespace std;
 
-class BTLoggerReceiver
+class ZLoggerReceiver
 {
     private:
-        BTLoggerZMQ zmqHandler;
-        BTLoggerParser parser;
-        BTLogger logger;
+        ZLoggerZMQ* zmqHandler;
+        ZLoggerParser* parser;
+        ZLogger* logger;
 
     public:
-        BTLoggerReceiver() {}
-        ~BTLoggerReceiver() {}
+        ZLoggerReceiver(ZLoggerZMQ& zmqHandler, ZLoggerParser& parser, ZLogger& logger) 
+        {
+            this->zmqHandler = &zmqHandler;
+            this->parser = &parser;
+            this->logger = &logger;
+        }
+
+        ~ZLoggerReceiver() {}
 
         void start()
         {
-            cout << "BTLoggerReceiver starting..." << endl;
-            this->zmqHandler.init();
-            cout << "BTLoggerReceiver zmqHandler intialized" << endl;
+            cout << "ZLoggerReceiver starting..." << endl;
+            this->zmqHandler->init();
+            cout << "ZLoggerReceiver zmqHandler intialized" << endl;
 
-            BTLoggerRequest *req;
+            ZLoggerRequest *req;
             while(true)
             {
-                string request = this->zmqHandler.getNext();
-                cout << "BTLoggerReceiver got " << request << " from zeroMq" << endl;
-                if((req = this->parser.parse(request)))
-                    cout << "BTLoggerReceiver logging message" << endl;
-                    this->logger.log(req);  // assync processing
+                string request = this->zmqHandler->getNext();
+                cout << "ZLoggerReceiver got " << request << " from zeroMq" << endl;
+                if((req = this->parser->parse(request)))
+                    cout << "ZLoggerReceiver logging message" << endl;
+                    this->logger->log(req);  // assync processing
             }
         }
 };

@@ -1,5 +1,5 @@
-#ifndef __BT_LOGGER_PARSER__
-#define __BT_LOGGER_PARSER__
+#ifndef __BTLOGGER_PARSER__
+#define __BTLOGGER_PARSER__
 
 #include <string>
 #include <iostream>
@@ -32,13 +32,13 @@
 using namespace std;
 
 // Simple enum to categorize one request
-enum BTLoggerRequestType {CONFIG, LOG, INVALID};
+enum ZLoggerRequestType {CONFIG, LOG, INVALID};
 
 
 // Simple struct to hold a parsed request.
-struct BTLoggerRequest
+struct ZLoggerRequest
 {
-    BTLoggerRequestType type;
+    ZLoggerRequestType type;
     string fileName;
     string fileLocation;
     string logLevel;
@@ -50,18 +50,18 @@ struct BTLoggerRequest
 };
 
 // Main class responsible for parsing requests
-class BTLoggerParser 
+class ZLoggerParser 
 {
     public:
-        BTLoggerParser() {}
-        ~BTLoggerParser() {}
+        ZLoggerParser() {}
+        ~ZLoggerParser() {}
 
-        BTLoggerRequest* parse(string request)
+        ZLoggerRequest* parse(string request)
         {
-            cout << "BTLoggerParser parsing: " << request << endl;
+            cout << "ZLoggerParser parsing: " << request << endl;
 
-            BTLoggerRequest *parsedRequest;
-            parsedRequest = new BTLoggerRequest();
+            ZLoggerRequest *parsedRequest;
+            parsedRequest = new ZLoggerRequest();
 
             // Parsing json
             try {
@@ -73,7 +73,7 @@ class BTLoggerParser
                 
                 if(type == CONFIG_TYPE )
                 {
-                    cout << "BTLoggerParser it's a config request: " << request << endl;
+                    cout << "ZLoggerParser it's a config request: " << request << endl;
 
                     parsedRequest->type           = CONFIG;
                     parsedRequest->fileName       = json.get<string>(FILE_NAME_FIELD);
@@ -84,7 +84,7 @@ class BTLoggerParser
                 } 
                 else if(type == LOG_TYPE)
                 {
-                    cout << "BTLoggerParser it's a log request: " << request << endl;
+                    cout << "ZLoggerParser it's a log request: " << request << endl;
 
                     parsedRequest->type        = LOG;
                     parsedRequest->fileName    = json.get<string>(FILE_NAME_FIELD);
@@ -101,13 +101,13 @@ class BTLoggerParser
                 }
                 else
                 {
-                    cout << "BTLoggerParser unknown request: " << request << endl;
+                    cout << "ZLoggerParser unknown request: " << request << endl;
                     parsedRequest->type = INVALID;
                 }
             }
             catch(...)
             {
-                cout << "BTLoggerParser error during parsing: " << request << endl;
+                cout << "ZLoggerParser error during parsing: " << request << endl;
                 parsedRequest->type = INVALID;
             }
 

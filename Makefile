@@ -12,4 +12,6 @@ all:
 
 clean:
 	rm bin/zlogger
+	rm -r bin
+    
 

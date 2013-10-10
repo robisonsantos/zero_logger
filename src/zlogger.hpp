@@ -13,7 +13,7 @@
 #include "log4cpp/PatternLayout.hh"
 
 #include "sync_queue.hpp"
-#include "zlogger_parser.hpp" // To get access to BTLoggerRequest and BTLoggerRequestType
+#include "zlogger_parser.hpp" // To get access to ZLoggerRequest and ZLoggerRequestType
 
 // Log a simple message as it is and break line
 #define LOG_LAYOUT_PATTERN "%m%n"
@@ -25,22 +25,22 @@ using namespace std;
  * Each thread will handle one log file, and will
  * consume from one queue.
  */
-class BTLogger
+class ZLogger
 {
     private:
-        map<string, SynchronisedQueue<BTLoggerRequest*>* > loggingRequestMap;
-        queue<SynchronisedQueue<BTLoggerRequest*>* > taskQueue;
+        map<string, SynchronisedQueue<ZLoggerRequest*>* > loggingRequestMap;
+        queue<SynchronisedQueue<ZLoggerRequest*>* > taskQueue;
 
     public:
-        BTLogger()
+        ZLogger()
         {
             // TODO: create worker threads
             // How to create worker threads and keep the logging sequence???
         }
 
-        ~BTLogger(){}
+        ~ZLogger(){}
 
-        void log(BTLoggerRequest* request)
+        void log(ZLoggerRequest* request)
         {
             if(request->type == CONFIG)
             {
@@ -48,23 +48,23 @@ class BTLogger
                 // Should we first verify the log handler does not exist?
                 // If a log handler exist, then the loggingRequestMap 
                 // contains a key for the file.
-                map<string, SynchronisedQueue<BTLoggerRequest*>* >::iterator it;
+                map<string, SynchronisedQueue<ZLoggerRequest*>* >::iterator it;
                 it = loggingRequestMap.find(request->fileName);
                 if(it == loggingRequestMap.end()) {
-                    SynchronisedQueue<BTLoggerRequest*> *queue = new SynchronisedQueue<BTLoggerRequest*>();
+                    SynchronisedQueue<ZLoggerRequest*> *queue = new SynchronisedQueue<ZLoggerRequest*>();
                     loggingRequestMap[request->fileName] = queue;   
                     boost::thread workerThread(boost::bind(&worker, queue, request));
                 }
                 else
                 {
-                    cout << "BTLogger: log handler for " << request->fileName << " already configured" << endl;
+                    cout << "ZLogger: log handler for " << request->fileName << " already configured" << endl;
                 }
             } 
             else
             {
                 // Enqueue a request to the corresponding queue if that file
                 // has an entry into the map.
-                map<string, SynchronisedQueue<BTLoggerRequest*>* >::iterator it;
+                map<string, SynchronisedQueue<ZLoggerRequest*>* >::iterator it;
                 it = loggingRequestMap.find(request->fileName);
                 if(it != loggingRequestMap.end()) {
                     it->second->enqueue(request);
@@ -73,7 +73,7 @@ class BTLogger
         }
 
     private:
-        static void worker(SynchronisedQueue<BTLoggerRequest*> *queue, BTLoggerRequest* config)
+        static void worker(SynchronisedQueue<ZLoggerRequest*> *queue, ZLoggerRequest* config)
         {
             // Configure a new log handler
             try
@@ -90,7 +90,7 @@ class BTLogger
                 // TODO: when to stop the loop?
                 while(true) 
                 {
-                    BTLoggerRequest *loggingRequest;
+                    ZLoggerRequest *loggingRequest;
                     if(queue->tryDequeue(loggingRequest) && loggingRequest->type == LOG) 
                     {
                         // Do the logging

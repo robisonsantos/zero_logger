@@ -1,5 +1,5 @@
-#ifndef __BTLOGGER_ZMQ__
-#define __BTLOGGER_ZMQ__
+#ifndef __ZLOGGER_ZMQ__
+#define __ZLOGGER_ZMQ__
 
 #include <boost/thread.hpp>
 #include <string>
@@ -9,28 +9,28 @@
 
 using namespace std;
 
-class BTLoggerZMQ
+class ZLoggerZMQ
 {
     private:
         SynchronisedQueue<string> *requests;
         
     public:
-        BTLoggerZMQ()
+        ZLoggerZMQ()
         {
             this->requests = new SynchronisedQueue<string>();
-            cout << "BTLoggerZMQ instance created" << endl;            
+            cout << "ZLoggerZMQ instance created" << endl;            
         }
 
-        ~BTLoggerZMQ()
+        ~ZLoggerZMQ()
         {
             delete this->requests;
         }
 
         void init()
         {
-            cout << "BTLoggerZMQ initiating" << endl;
+            cout << "ZLoggerZMQ initiating" << endl;
             boost::thread workerThread(boost::bind(&worker, this->requests));
-            cout << "BTLoggerZMQ initiated" << endl;
+            cout << "ZLoggerZMQ initiated" << endl;
         }
 
         string getNext()
@@ -38,29 +38,29 @@ class BTLoggerZMQ
             string ret;
             if(!this->requests->tryDequeue(ret)) ret = "";
                 
-            cout << "BTLoggerZMQ::getNext returning: " << ret << endl;
+            cout << "ZLoggerZMQ::getNext returning: " << ret << endl;
             return ret;
         }
 
     private:
         static void worker(SynchronisedQueue<string> *queue) 
         {
-            cout << "BTLoggerZMQ::worker initiating: " << endl;
+            cout << "ZLoggerZMQ::worker initiating: " << endl;
 
             zmq::context_t context(1);
             zmq::socket_t server(context, ZMQ_PULL);
             server.bind("tcp://0.0.0.0:5555");
 
-            cout << "BTLoggerZMQ bound to: tcp://0.0.0.0:5555" << endl;
+            cout << "ZLoggerZMQ bound to: tcp://0.0.0.0:5555" << endl;
 
             while(true)
             {
                 zmq::message_t message;
                 server.recv(&message);
 
-                cout << "BTLoggerZMQ::worker got new message" << endl;
+                cout << "ZLoggerZMQ::worker got new message" << endl;
                 queue->enqueue(std::string(static_cast<char*>(message.data()), message.size()));
-                cout << "BTLoggerZMQ::worker message stored" << endl;
+                cout << "ZLoggerZMQ::worker message stored" << endl;
             }
         }
 };
