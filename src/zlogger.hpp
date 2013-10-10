@@ -113,6 +113,7 @@ class ZLogger
     private:
         void worker(SynchronisedQueue<Task*> *queue)
         {
+            cout << "Thread: " << boost::this_thread::get_id() << " initiated and listening queue " << queue << endl;
             while(true) 
             {
                 Task *task;
@@ -154,8 +155,8 @@ class ZLogger
                     }
 
                     // free the memory
-                    delete task->request;
-                    delete task;
+                    //delete task->request;
+                    //delete task;
                 }
             }
         }
