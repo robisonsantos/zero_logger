@@ -17,8 +17,16 @@
 
 // Log a simple message as it is and break line
 #define LOG_LAYOUT_PATTERN "%m%n"
+#define DEFAULT_WORKER_THREADS 10
 
 using namespace std;
+
+struct Task
+{
+    log4cpp::Category* category;
+    ZLoggerRequest* request;
+};
+
 
 /*
  * For each config request a new thread is spawned.
@@ -28,118 +36,145 @@ using namespace std;
 class ZLogger
 {
     private:
-        map<string, SynchronisedQueue<ZLoggerRequest*>* > loggingRequestMap;
-        queue<SynchronisedQueue<ZLoggerRequest*>* > taskQueue;
+        map<string, log4cpp::Category* > categoryMap;
+        map<string, boost::thread* > threadsMap;
+        map<boost::thread*, SynchronisedQueue<Task*>* > loggingTaskMap;
+        queue<boost::thread* > threadsQueue;
 
     public:
-        ZLogger()
+        ZLogger(int workerThreads = DEFAULT_WORKER_THREADS)
         {
             // TODO: create worker threads
-            // How to create worker threads and keep the logging sequence???
+            for(int i = 0; i < workerThreads; i++)
+            {
+                // create threads and populate queues and maps
+                SynchronisedQueue<Task*>* queue = new SynchronisedQueue<Task*>();
+                boost::thread *workerThread = new boost::thread(&ZLogger::worker, this, queue);
+                this->threadsQueue.push(workerThread);
+                this->loggingTaskMap[workerThread] = queue;
+            }
         }
 
-        ~ZLogger(){}
+        ~ZLogger() 
+        { 
+            //TODO: stop all threads
+            //TODO: delete all threads
+            //TODO: delete all queues
+        }
 
-        void log(ZLoggerRequest* request)
+        void log(ZLoggerRequest *request)
         {
             if(request->type == CONFIG)
             {
-                // Start a new thread with the config information
-                // Should we first verify the log handler does not exist?
-                // If a log handler exist, then the loggingRequestMap 
-                // contains a key for the file.
-                map<string, SynchronisedQueue<ZLoggerRequest*>* >::iterator it;
-                it = loggingRequestMap.find(request->fileName);
-                if(it == loggingRequestMap.end()) {
-                    SynchronisedQueue<ZLoggerRequest*> *queue = new SynchronisedQueue<ZLoggerRequest*>();
-                    loggingRequestMap[request->fileName] = queue;   
-                    boost::thread workerThread(boost::bind(&ZLogger::worker, this, queue, request));
-                }
-                else
-                {
-                    cout << "ZLogger: log handler for " << request->fileName << " already configured" << endl;
-                }
+                log4cpp::Category &category = configureNewLogger(request->fileLocation, 
+                                                                 request->fileLocation + "/" + request->fileName, 
+                                                                 request->maxFileSize, 
+                                                                 request->maxBackupIndex, 
+                                                                 request->priority);
+                this->categoryMap[request->fileName] = &category;
+                delete request;
             } 
-            else
+            else if(request->type == LOG)
             {
-                // Enqueue a request to the corresponding queue if that file
-                // has an entry into the map.
-                map<string, SynchronisedQueue<ZLoggerRequest*>* >::iterator it;
-                it = loggingRequestMap.find(request->fileName);
-                if(it != loggingRequestMap.end()) {
-                    it->second->enqueue(request);
+                // Create a new task if we have a category for this request
+                map<string, log4cpp::Category* >::iterator itCategory;
+                itCategory = this->categoryMap.find(request->fileName);
+                if(itCategory != this->categoryMap.end())
+                {
+                    // Create a new task
+                    Task *task;
+                    task->category = itCategory->second;
+                    task->request = request;
+
+                    // Check if a thread handling this file already exists
+                    boost::thread* workerThread;
+
+                    map<string, boost::thread* >::iterator itThreads;
+                    itThreads = this->threadsMap.find(request->fileName);
+                    if(itThreads == this->threadsMap.end())
+                    {
+                        // I dont have a thread for this file yet.
+                        // Grab one from the pool 
+                        workerThread = nextThread();
+                        this->threadsMap[request->fileName] = workerThread;
+                    }
+                    else
+                    {
+                        workerThread = itThreads->second;
+                    }
+                    
+                    // Now, I sure have a thread for this file, let's use it
+                    this->loggingTaskMap[workerThread]->enqueue(task);
                 }
+
             }
         }
 
     private:
-        void worker(SynchronisedQueue<ZLoggerRequest*> *queue, ZLoggerRequest* config)
+        void worker(SynchronisedQueue<Task*> *queue)
         {
-            // Configure a new log handler
-            try
+            while(true) 
             {
-
-                log4cpp::Category &category = configureNewLogger(config->fileLocation, 
-                                                                 config->fileLocation + "/" + config->fileName, 
-                                                                 config->maxFileSize, 
-                                                                 config->maxBackupIndex, 
-                                                                 config->priority);
-                delete config;
-
-                // Keep logging stuff
-                // TODO: when to stop the loop?
-                while(true) 
+                Task *task;
+                if(queue->tryDequeue(task) && task->request->type == LOG) 
                 {
-                    ZLoggerRequest *loggingRequest;
-                    if(queue->tryDequeue(loggingRequest) && loggingRequest->type == LOG) 
+                    // Do the logging
+                    boost::to_upper(task->request->logLevel);
+                    if( task->request->logLevel == "DEBUG" && task->category->isDebugEnabled())
                     {
-                        // Do the logging
-                        boost::to_upper(loggingRequest->logLevel);
-                        if( loggingRequest->logLevel == "DEBUG" && category.isDebugEnabled())
-                        {
-                            category.debug("%s - [DEBUG] %s", loggingRequest->timestamp.c_str(), loggingRequest->logMessage.c_str());
-                        } 
-                        else if(loggingRequest->logLevel == "INFO" && category.isInfoEnabled())
-                        {
-                            category.info("%s - [INFO] %s", loggingRequest->timestamp.c_str(), loggingRequest->logMessage.c_str());
-                        }
-                        else if(loggingRequest->logLevel == "NOTICE" && category.isNoticeEnabled())
-                        {
-                            category.notice("%s - [NOTICE] %s", loggingRequest->timestamp.c_str(), loggingRequest->logMessage.c_str());
-                        }
-                        else if(loggingRequest->logLevel == "WARN" && category.isWarnEnabled())
-                        {
-                            category.warn("%s - [WARN] %s", loggingRequest->timestamp.c_str(), loggingRequest->logMessage.c_str());
-                        }
-                        else if(loggingRequest->logLevel == "ERROR" && category.isErrorEnabled())
-                        {
-                            category.error("%s - [ERROR] %s", loggingRequest->timestamp.c_str(), loggingRequest->logMessage.c_str());
-                        }
-                        else if(loggingRequest->logLevel == "CRIT" && category.isCritEnabled())
-                        {
-                            category.crit("%s - [CRIT] %s", loggingRequest->timestamp.c_str(), loggingRequest->logMessage.c_str());
-                        }
-                        else if(loggingRequest->logLevel == "ALERT" && category.isAlertEnabled())
-                        {
-                            category.alert("%s - [ALERT] %s", loggingRequest->timestamp.c_str(), loggingRequest->logMessage.c_str());
-                        }
-                        else if(loggingRequest->logLevel == "FATAL" && category.isFatalEnabled())
-                        {
-                            category.fatal("%s - [FATAL] %s", loggingRequest->timestamp.c_str(), loggingRequest->logMessage.c_str());
-                        }
-
-                        // free the memory
-                        delete loggingRequest;
+                        task->category->debug("%s - [DEBUG] %s", task->request->timestamp.c_str(), task->request->logMessage.c_str());
+                    } 
+                    else if(task->request->logLevel == "INFO" && task->category->isInfoEnabled())
+                    {
+                        task->category->info("%s - [INFO] %s", task->request->timestamp.c_str(), task->request->logMessage.c_str());
                     }
+                    else if(task->request->logLevel == "NOTICE" && task->category->isNoticeEnabled())
+                    {
+                        task->category->notice("%s - [NOTICE] %s", task->request->timestamp.c_str(), task->request->logMessage.c_str());
+                    }
+                    else if(task->request->logLevel == "WARN" && task->category->isWarnEnabled())
+                    {
+                        task->category->warn("%s - [WARN] %s", task->request->timestamp.c_str(), task->request->logMessage.c_str());
+                    }
+                    else if(task->request->logLevel == "ERROR" && task->category->isErrorEnabled())
+                    {
+                        task->category->error("%s - [ERROR] %s", task->request->timestamp.c_str(), task->request->logMessage.c_str());
+                    }
+                    else if(task->request->logLevel == "CRIT" && task->category->isCritEnabled())
+                    {
+                        task->category->crit("%s - [CRIT] %s", task->request->timestamp.c_str(), task->request->logMessage.c_str());
+                    }
+                    else if(task->request->logLevel == "ALERT" && task->category->isAlertEnabled())
+                    {
+                        task->category->alert("%s - [ALERT] %s", task->request->timestamp.c_str(), task->request->logMessage.c_str());
+                    }
+                    else if(task->request->logLevel == "FATAL" && task->category->isFatalEnabled())
+                    {
+                        task->category->fatal("%s - [FATAL] %s", task->request->timestamp.c_str(), task->request->logMessage.c_str());
+                    }
+
+                    // free the memory
+                    delete task->request;
+                    delete task;
                 }
-            }  
-            catch(...)
-            {
-                // Nothing to do here!
-            } 
+            }
         }
 
-        static log4cpp::Category& configureNewLogger(string fileName, string filePath, size_t maxFileSize, unsigned int maxBackupIndex, string priority) 
+        /*********************************************************************/
+        boost::thread* nextThread()
+        {
+            boost::thread *next = this->threadsQueue.front();
+            this->threadsQueue.pop();
+            this->threadsQueue.push(next);
+            return next;
+        }
+
+        /*********************************************************************/
+        log4cpp::Category& configureNewLogger(string fileName, 
+                                              string filePath, 
+                                              size_t maxFileSize, 
+                                              unsigned int maxBackupIndex, 
+                                              string priority) 
         {
             // Create a new category
             log4cpp::Category &category = log4cpp::Category::getInstance(fileName);
