@@ -29,7 +29,7 @@ class ZLoggerZMQ
         void init()
         {
             cout << "ZLoggerZMQ initiating" << endl;
-            boost::thread workerThread(boost::bind(&worker, this->requests));
+            boost::thread workerThread(boost::bind(&ZLoggerZMQ::worker, this));
             cout << "ZLoggerZMQ initiated" << endl;
         }
 
@@ -43,9 +43,11 @@ class ZLoggerZMQ
         }
 
     private:
-        static void worker(SynchronisedQueue<string> *queue) 
+        void worker() 
         {
             cout << "ZLoggerZMQ::worker initiating: " << endl;
+            
+            SynchronisedQueue<string> *queue = this->requests;
 
             zmq::context_t context(1);
             zmq::socket_t server(context, ZMQ_PULL);

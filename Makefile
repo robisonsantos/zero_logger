@@ -11,7 +11,7 @@ all:
 	g++ src/zlogger_driver.cpp -I./src $(GPP_FLAGS) -o bin/zlogger 
 
 clean:
-	rm bin/zlogger
-	rm -r bin
+	rm -f ./bin/zlogger
+	rm -rf ./bin
     
 

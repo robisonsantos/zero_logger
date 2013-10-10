@@ -53,7 +53,7 @@ class ZLogger
                 if(it == loggingRequestMap.end()) {
                     SynchronisedQueue<ZLoggerRequest*> *queue = new SynchronisedQueue<ZLoggerRequest*>();
                     loggingRequestMap[request->fileName] = queue;   
-                    boost::thread workerThread(boost::bind(&worker, queue, request));
+                    boost::thread workerThread(boost::bind(&ZLogger::worker, this, queue, request));
                 }
                 else
                 {
@@ -73,7 +73,7 @@ class ZLogger
         }
 
     private:
-        static void worker(SynchronisedQueue<ZLoggerRequest*> *queue, ZLoggerRequest* config)
+        void worker(SynchronisedQueue<ZLoggerRequest*> *queue, ZLoggerRequest* config)
         {
             // Configure a new log handler
             try
